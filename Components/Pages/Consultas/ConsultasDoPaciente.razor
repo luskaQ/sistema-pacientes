@@ -1,0 +1,222 @@
+@page "/Consultas/{Cpf}"
+@page "/pacientes/{Cpf}/consultas"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using SistemaPacientesBlazor.Models
+@using SistemaPacientesBlazor.Services
+@inject IPacienteService PacienteService
+@inject IConsultaService ConsultaService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            @if (paciente != null)
+            {
+                <h3>Histórico de Consultas</h3>
+                <h5 class="text-muted">Paciente: <strong>@paciente.Nome</strong> (CPF: @paciente.Cpf)</h5>
+            }
+            else
+            {
+                <h3>Consultas</h3>
+                <span class="spinner-border spinner-border-sm"></span>
+
+                <span>Carregando dados do paciente...</span>
+            }
+        </div>
+        <div>
+            <a href="/pacientes" class="btn btn-outline-secondary mr-2">Voltar</a>
+            <button class="btn btn-primary" @onclick="AbrirModalNovaConsulta">
+                <span class="oi oi-plus"></span> Nova Consulta
+            </button>
+        </div>
+    </div>
+
+    @if (consultas == null)
+    {
+        <p>Carregando consultas...</p>
+    }
+    else if (!consultas.Any())
+    {
+        <div class="alert alert-info">
+            Nenhuma consulta registrada para este paciente.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="thead-light">
+                    <tr>
+                        <th style="width: 15%">Data</th>
+                        <th style="width: 25%">Motivo</th>
+                        <th>Descrição/Observações</th>
+                        <th style="width: 150px;" class="text-center">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in consultas)
+                    {
+                        <tr>
+                            <td>@c.Data.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td><strong>@c.Motivo</strong></td>
+                            <td>@c.Desc</td>
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-outline-primary mr-1" @onclick="() => EditarConsulta(c)"
+                                    title="Editar">
+                                    <span class="oi oi-pencil"></span> Editar
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeletarConsulta(c)"
+                                    title="Excluir">
+                                    <span class="oi oi-trash">Excluir</span>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@if (exibirModal)
+{
+    <div class="modal fade show" style="display: block; background-color: rgba(0,0,0,0.5);" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">@(consultaEmEdicao.Id == 0 ? "Registrar Nova Consulta" : "Editar Consulta")</h5>
+                    <button type="button" class="close text-white" @onclick="FecharModal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="@consultaEmEdicao" OnValidSubmit="SalvarConsulta">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="row">
+                            <div class="col-md-6 form-group mb-3">
+                                <label for="data">Data e Hora</label>
+                                <InputDate Type="InputDateType.DateTimeLocal" id="data" class="form-control"
+                                    @bind-Value="consultaEmEdicao.Data" />
+                                <ValidationMessage For="@(() => consultaEmEdicao.Data)" />
+                            </div>
+
+                            <div class="col-md-6 form-group mb-3">
+                                <label for="motivo">Motivo Principal</label>
+                                <InputText id="motivo" class="form-control" @bind-Value="consultaEmEdicao.Motivo"
+                                    placeholder="Ex: Dor de cabeça, Retorno..." />
+                                <ValidationMessage For="@(() => consultaEmEdicao.Motivo)" />
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="desc">Descrição Detalhada</label>
+                            <InputTextArea id="desc" class="form-control" @bind-Value="consultaEmEdicao.Desc" rows="4"
+                                placeholder="Detalhes do atendimento..." />
+                            <ValidationMessage For="@(() => consultaEmEdicao.Desc)" />
+                        </div>
+
+                        <div class="modal-footer px-0 pb-0">
+                            <button type="button" class="btn btn-secondary" @onclick="FecharModal">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">Salvar</button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Cpf { get; set; }
+
+    private Paciente? paciente;
+    private List<Consulta>? consultas;
+
+    private bool exibirModal = false;
+    private Consulta consultaEmEdicao = new Consulta();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        paciente = await PacienteService.GetByCpfAsync(Cpf);
+
+        consultas = paciente.Consultas;
+    }
+
+    private void AbrirModalNovaConsulta()
+    {
+        consultaEmEdicao = new Consulta
+        {
+            CpfPaciente = Cpf,
+            Data = DateTime.Now
+        };
+        exibirModal = true;
+    }
+
+    private void EditarConsulta(Consulta consulta)
+    {
+        consultaEmEdicao = new Consulta
+        {
+            Id = consulta.Id,
+            Data = consulta.Data,
+            Motivo = consulta.Motivo,
+            Desc = consulta.Desc,
+            CpfPaciente = consulta.CpfPaciente
+        };
+        exibirModal = true;
+    }
+
+    private void FecharModal()
+    {
+        exibirModal = false;
+    }
+
+    private async Task SalvarConsulta()
+    {
+        consultaEmEdicao.CpfPaciente = Cpf;
+        consultaEmEdicao.Data = DateTime.SpecifyKind(consultaEmEdicao.Data, DateTimeKind.Utc);
+        if (consultaEmEdicao.Id == 0)
+        {
+            await ConsultaService.AddAsync(consultaEmEdicao);
+        }
+        else
+        {
+            var consultaOriginal = consultas.FirstOrDefault(c => c.Id == consultaEmEdicao.Id);
+
+            if (consultaOriginal != null)
+            {
+                consultaOriginal.Data = consultaEmEdicao.Data;
+                consultaOriginal.Motivo = consultaEmEdicao.Motivo;
+                consultaOriginal.Desc = consultaEmEdicao.Desc;
+
+                await ConsultaService.UpdateAsync(consultaOriginal);
+            }
+        }
+
+        exibirModal = false;
+        await CarregarDados(); // Recarrega a lista
+    }
+
+    private async Task DeletarConsulta(Consulta consulta)
+    {
+        bool confirmado = await JSRuntime.InvokeAsync<bool>("confirm", "Tem certeza que deseja excluir esta consulta?");
+
+        if (confirmado)
+        {
+            // Assume que existe um método DeleteAsync no serviço
+            await ConsultaService.DeleteAsync(consulta.Id);
+            await CarregarDados();
+        }
+    }
+}

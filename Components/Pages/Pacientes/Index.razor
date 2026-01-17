@@ -1,0 +1,200 @@
+@page "/pacientes"
+@attribute [Authorize]
+
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using SistemaPacientesBlazor.Services
+@using SistemaPacientesBlazor.Models
+@inject IPacienteService PacienteService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Gerenciamento de Pacientes</h3>
+    <a href="/pacientes/create" class="btn btn-primary">
+        <span class="oi oi-plus" aria-hidden="true"></span> Novo Paciente
+    </a>
+</div>
+
+@if (pacientes == null)
+{
+    <div class="d-flex justify-content-center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="sr-only">Carregando...</span>
+        </div>
+    </div>
+}
+else if (!pacientes.Any())
+{
+    <div class="alert alert-info">
+        Nenhum paciente cadastrado.
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover table-striped">
+            <thead class="thead-dark">
+                <tr>
+                    <th>Nome</th>
+                    <th>CPF</th>
+                    <th>Contato</th>
+                    <th class="text-center" style="width: 250px;">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in pacientes)
+                {
+                    <tr @onclick="() => VerConsultas(p.Cpf)" style="cursor: pointer;" title="Clique para ver consultas">
+                        <td>
+                            <strong>@p.Nome</strong>
+                        </td>
+                        <td>@p.Cpf</td>
+                        <td>@p.Contato</td>
+                        <td class="text-center" @onclick:stopPropagation="true">
+                            <!-- Botão Editar (Agora abre Modal) -->
+                            <button class="btn btn-sm btn-outline-primary mr-2" @onclick="() => EditarPaciente(p)" title="Editar">
+                                Editar
+                            </button>
+
+                            <!-- Botão Excluir -->
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeletarPaciente(p)" title="Excluir">
+                                Excluir
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (exibirModal)
+{
+    <div class="modal fade show" style="display: block; background-color: rgba(0,0,0,0.5);" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Editar Paciente</h5>
+                    <button type="button" class="close text-white" @onclick="FecharModal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="@pacienteEmEdicao" OnValidSubmit="SalvarEdicao">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="row">
+                            <div class="col-md-6 form-group mb-3">
+                                <label for="cpf" class="form-label">CPF</label>
+                                <!-- CPF desabilitado pois é chave primária -->
+                                <InputText id="cpf" class="form-control" @bind-Value="pacienteEmEdicao.Cpf" disabled />
+                            </div>
+
+                            <div class="col-md-6 form-group mb-3">
+                                <label for="nascimento" class="form-label">Data de Nascimento</label>
+                                <InputDate id="nascimento" class="form-control" @bind-Value="pacienteEmEdicao.Nascimento" />
+                                <ValidationMessage For="@(() => pacienteEmEdicao.Nascimento)" />
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="nome" class="form-label">Nome Completo</label>
+                            <InputText id="nome" class="form-control" @bind-Value="pacienteEmEdicao.Nome" />
+                            <ValidationMessage For="@(() => pacienteEmEdicao.Nome)" />
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="contato" class="form-label">Contato</label>
+                            <InputText id="contato" class="form-control" @bind-Value="pacienteEmEdicao.Contato" />
+                            <ValidationMessage For="@(() => pacienteEmEdicao.Contato)" />
+                        </div>
+
+                        <div class="form-group mb-4">
+                            <label for="endereco" class="form-label">Endereço</label>
+                            <InputTextArea id="endereco" class="form-control" @bind-Value="pacienteEmEdicao.Endereco" rows="3" />
+                            <ValidationMessage For="@(() => pacienteEmEdicao.Endereco)" />
+                        </div>
+
+                        <div class="modal-footer px-0 pb-0">
+                            <button type="button" class="btn btn-secondary" @onclick="FecharModal">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Paciente>? pacientes;
+    
+    private bool exibirModal = false;
+    private Paciente pacienteEmEdicao = new Paciente();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarPacientes();
+    }
+
+    private async Task CarregarPacientes()
+    {
+        pacientes = await PacienteService.GetAllAsync();
+    }
+
+    private void VerConsultas(string cpf)
+    {
+        Navigation.NavigateTo($"/pacientes/{cpf}/consultas");
+    }
+
+    private void EditarPaciente(Paciente paciente)
+    {
+
+        pacienteEmEdicao = new Paciente
+        {
+            Cpf = paciente.Cpf,
+            Nome = paciente.Nome,
+            Nascimento = paciente.Nascimento,
+            Contato = paciente.Contato,
+            Endereco = paciente.Endereco,
+            Consultas = paciente.Consultas 
+        };
+        
+        exibirModal = true;
+    }
+
+    private void FecharModal()
+    {
+        exibirModal = false;
+    }
+
+     private async Task SalvarEdicao()
+    {
+        var pacienteOriginal = pacientes.FirstOrDefault(p => p.Cpf == pacienteEmEdicao.Cpf);
+
+        if (pacienteOriginal != null)
+        {
+            pacienteOriginal.Nome = pacienteEmEdicao.Nome;
+            pacienteOriginal.Nascimento = pacienteEmEdicao.Nascimento;
+            pacienteOriginal.Contato = pacienteEmEdicao.Contato;
+            pacienteOriginal.Endereco = pacienteEmEdicao.Endereco;
+
+            await PacienteService.UpdateAsync(pacienteOriginal);
+        }
+
+        exibirModal = false;
+    }
+
+    private async Task DeletarPaciente(Paciente paciente)
+    {
+        bool confirmado = await JSRuntime.InvokeAsync<bool>("confirm", $"Tem certeza que deseja excluir o paciente {paciente.Nome}?");
+
+        if (confirmado)
+        {
+            await PacienteService.DeleteAsync(paciente.Cpf); 
+            pacientes.Remove(paciente);
+        }
+    }
+}

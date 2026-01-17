@@ -1,0 +1,207 @@
+﻿@page "/"
+@attribute [Authorize]
+
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using SistemaPacientesBlazor.Models
+@using SistemaPacientesBlazor.Services
+@inject IPacienteService PacienteService
+@inject NavigationManager Navigation
+
+<PageTitle>Dashboard - Sistema Pacientes</PageTitle>
+
+<div class="mb-4">
+    <h1>Bem-vindo ao Sistema</h1>
+    <p class="text-muted">Visão geral e alertas do dia (@DateTime.Now.ToString("dd/MM/yyyy")).</p>
+</div>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center mt-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="sr-only">Carregando...</span>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row">
+        <!-- 1. Aniversariantes do Dia -->
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm h-100 border-primary">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">🎂 Aniversariantes</h5>
+                    <span class="badge badge-light text-primary font-weight-bold">@aniversariantes.Count</span>
+                </div>
+                <div class="card-body p-0">
+                    @if (!aniversariantes.Any())
+                    {
+                        <div class="p-4 text-center text-muted">Nenhum aniversariante hoje.</div>
+                    }
+                    else
+                    {
+                        <div class="list-group list-group-flush">
+                            @foreach (var p in aniversariantes)
+                            {
+                                <button type="button" class="list-group-item list-group-item-action"
+                                    @onclick="() => IrParaPaciente(p.Cpf)">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1 font-weight-bold">@p.Nome</h6>
+                                        <small class="text-primary">@CalcularIdade(p.Nascimento) anos</small>
+                                    </div>
+                                    <small class="text-muted">@p.Contato</small>
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Agenda de Hoje -->
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm h-100 border-success">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">📅 Atendimentos Hoje</h5>
+                    <span class="badge badge-light text-success font-weight-bold">@atendimentosHoje.Count</span>
+                </div>
+                <div class="card-body p-0">
+                    @if (!atendimentosHoje.Any())
+                    {
+                        <div class="p-4 text-center text-muted">Agenda livre por hoje.</div>
+                    }
+                    else
+                    {
+                        <div class="list-group list-group-flush">
+                            @foreach (var item in atendimentosHoje.OrderBy(x => x.Consulta.Data))
+                            {
+                                <button type="button" class="list-group-item list-group-item-action"
+                                    @onclick="() => IrParaPaciente(item.Paciente.Cpf)">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1 font-weight-bold">@item.Consulta.Data.ToString("HH:mm")</h6>
+                                        <small>@item.Paciente.Nome</small>
+                                    </div>
+                                    <p class="mb-1 small text-muted">@item.Consulta.Motivo</p>
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Retorno Pendente (> 6 meses) -->
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm h-100 border-warning">
+                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">⚠️ Retorno Pendente</h5>
+                    <span class="badge badge-light text-dark font-weight-bold">@semRetorno.Count</span>
+                </div>
+                <div class="card-body p-0">
+                    @if (!semRetorno.Any())
+                    {
+                        <div class="p-4 text-center text-muted">Todos os pacientes estão em dia!</div>
+                    }
+                    else
+                    {
+                        <div class="list-group list-group-flush">
+                            @foreach (var item in semRetorno.Take(5)) // Limitado a 5 para não esticar a tela
+                            {
+                                <button type="button" class="list-group-item list-group-item-action"
+                                    @onclick="() => IrParaPaciente(item.Paciente.Cpf)">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">@item.Paciente.Nome</h6>
+                                        <small class="text-danger">@item.MesesSemVir meses</small>
+                                    </div>
+                                    <small class="text-muted">Última: @item.UltimaData.ToString("dd/MM/yyyy")</small>
+                                </button>
+                            }
+                            @if (semRetorno.Count > 5)
+                            {
+                                <div class="p-2 text-center bg-light text-muted small">
+                                    + @(semRetorno.Count - 5) outros pacientes...
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private List<Paciente> aniversariantes = new();
+    private List<(Paciente Paciente, Consulta Consulta)> atendimentosHoje = new();
+    private List<(Paciente Paciente, DateTime UltimaData, int MesesSemVir)> semRetorno = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var todosPacientes = await PacienteService.GetAllAsync();
+            var hoje = DateTime.Today;
+
+            foreach (var p in todosPacientes)
+            {
+                if (p.Nascimento.Day == hoje.Day && p.Nascimento.Month == hoje.Month)
+                {
+                    aniversariantes.Add(p);
+                }
+
+                if (p.Consultas != null && p.Consultas.Any())
+                {
+                    var consultasHoje = p.Consultas.Where(c => c.Data.Date == hoje).ToList();
+                    foreach (var c in consultasHoje)
+                    {
+                        atendimentosHoje.Add((p, c));
+                    }
+
+                    var ultimaConsulta = p.Consultas.Max(c => c.Data);
+                    var objUltimaConsulta = p.Consultas
+                    .OrderByDescending(c => c.Data)
+                    .FirstOrDefault();
+                    var meses = (hoje.Year - ultimaConsulta.Year) * 12 + hoje.Month - ultimaConsulta.Month;
+
+                    if (hoje.Day < ultimaConsulta.Day) meses--;
+                    if (!string.IsNullOrWhiteSpace(objUltimaConsulta.Desc) &&
+                    objUltimaConsulta.Desc.Contains("microfisioterapia", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (meses >= 2)
+                        {
+                            semRetorno.Add((p, ultimaConsulta, meses));
+                        }
+                    }
+                    else
+                    {
+                        if (meses >= 6)
+                        {
+                            semRetorno.Add((p, ultimaConsulta, meses));
+                        }
+                    }
+                }
+            }
+
+            semRetorno = semRetorno.OrderByDescending(x => x.MesesSemVir).ToList();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void IrParaPaciente(string cpf)
+    {
+        Navigation.NavigateTo($"/pacientes/{cpf}/consultas");
+    }
+
+    private int CalcularIdade(DateTime nascimento)
+    {
+        var hoje = DateTime.Today;
+        var idade = hoje.Year - nascimento.Year;
+        if (nascimento.Date > hoje.AddYears(-idade)) idade--;
+        return idade;
+    }
+}

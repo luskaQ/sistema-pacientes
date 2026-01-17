@@ -1,0 +1,12 @@
+@inject NavigationManager Nav
+
+<button class="btn btn-link nav-link text-danger px-3" @onclick="Logout">
+    <i class="bi bi-box-arrow-right"></i> Sair
+</button>
+
+@code {
+    private void Logout()
+    {
+        Nav.NavigateTo("/Identity/Account/Logout", forceLoad: true);
+    }
+}

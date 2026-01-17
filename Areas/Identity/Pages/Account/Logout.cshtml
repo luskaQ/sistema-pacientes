@@ -1,0 +1,49 @@
+﻿@page
+@model LogoutModel
+@{
+    ViewData["Title"] = "Sair";
+    Layout = "_LoginLayout.cshtml";
+}
+
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Encerrar Sessão</h4>
+            </div>
+            <div class="card-body text-center p-4">
+                @if (User.Identity?.IsAuthenticated ?? false)
+                {
+                    <h5 class="card-title mb-4">Deseja realmente sair do sistema?</h5>
+                    
+                    <form class="form-inline" asp-area="Identity" asp-page="/Account/Logout" asp-route-returnUrl="@Url.Page("/", new { area = "" })" method="post">
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-danger btn-lg">
+                                Sim, Sair da Conta
+                            </button>
+                            <a href="/" class="btn btn-outline-secondary mt-2">
+                                Cancelar
+                            </a>
+                        </div>
+                    </form>
+                }
+                else
+                {
+                    <div class="mb-4 text-success">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-check-circle-fill" viewBox="0 0 16 16">
+                            <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+                        </svg>
+                    </div>
+                    <h4>Você saiu com sucesso.</h4>
+                    <p class="text-muted mb-4">Esperamos vê-lo novamente em breve.</p>
+                    
+                    <div class="d-grid gap-2">
+                        <a href="/Identity/Account/Login" class="btn btn-primary">
+                            Entrar Novamente
+                        </a>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
