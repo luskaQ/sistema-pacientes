@@ -1,20 +1,21 @@
-# Etapa 1: Build (Construção)
+# Etapa 1: Build
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /source
 
-# Copia os arquivos de projeto e restaura as dependências
-COPY *.sln .
+# Copia os arquivos
 COPY . .
-RUN dotnet restore
 
-# Publica a aplicação
-RUN dotnet publish -c Release -o /app
+# Restaura as dependências
+RUN dotnet restore "./SistemaPacientesBlazor.csproj"
 
-# Etapa 2: Runtime (Para rodar o site)
+# Publica a aplicação (Corrigido para apontar para o .csproj e não para o .sln)
+RUN dotnet publish "./SistemaPacientesBlazor.csproj" -c Release -o /app /p:UseAppHost=false
+
+# Etapa 2: Runtime
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /app .
 
-# --- IMPORTANTE: Mude "NomeDoSeuProjeto" abaixo para o nome do seu arquivo .dll ---
-# (Geralmente é o mesmo nome do seu arquivo .csproj)
-ENTRYPOINT ["dotnet", "SistemasPacientes.dll"]
+# --- A CORREÇÃO PRINCIPAL ESTÁ AQUI EMBAIXO ---
+# O nome deve ser EXATAMENTE igual ao gerado no log anterior: SistemaPacientesBlazor.dll
+ENTRYPOINT ["dotnet", "SistemaPacientesBlazor.dll"]
